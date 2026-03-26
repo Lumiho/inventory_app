@@ -4,7 +4,9 @@
       "Bash(unzip:*)",
       "Bash(ls:*)",
       "Bash(npx expo start:*)",
-      "Bash(npx expo install:*)"
+      "Bash(npx expo install:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)"
     ]
   }
 }

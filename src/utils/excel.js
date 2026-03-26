@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { CATEGORIES, DEFAULT_CATEGORY } from './categories';
 
 const formatDate = (date) => {
   const d = new Date(date);
@@ -17,26 +18,63 @@ const sanitizeSheetName = (name, index) => {
 };
 
 const createWorksheetFromInventory = (inventory) => {
-  const items = Object.entries(inventory.items)
-    .sort((a, b) => {
-      if (a[1] === 0 && b[1] !== 0) return 1;
-      if (a[1] !== 0 && b[1] === 0) return -1;
-      if (a[1] === b[1]) return a[0].localeCompare(b[0]);
-      return b[1] - a[1];
-    });
-
-  const data = [['Item', 'Count']];
-  let total = 0;
-
-  items.forEach(([name, count]) => {
-    data.push([name, count]);
-    total += count;
+  // Parse items handling both old format (count) and new format ({ count, category, comments })
+  const parsedItems = Object.entries(inventory.items).map(([name, data]) => {
+    if (typeof data === 'number') {
+      return { name, count: data, category: DEFAULT_CATEGORY, comments: '' };
+    }
+    return {
+      name,
+      count: data.count,
+      category: data.category || DEFAULT_CATEGORY,
+      comments: data.comments || '',
+    };
   });
 
-  data.push(['TOTAL', total]);
+  // Group by category
+  const grouped = {};
+  CATEGORIES.forEach((cat) => {
+    grouped[cat] = [];
+  });
+
+  parsedItems.forEach((item) => {
+    if (!grouped[item.category]) {
+      grouped[item.category] = [];
+    }
+    grouped[item.category].push(item);
+  });
+
+  // Sort items within each category
+  Object.keys(grouped).forEach((cat) => {
+    grouped[cat].sort((a, b) => {
+      if (a.count > 0 && b.count === 0) return -1;
+      if (a.count === 0 && b.count > 0) return 1;
+      if (a.count !== b.count) return b.count - a.count;
+      return a.name.localeCompare(b.name);
+    });
+  });
+
+  const data = [['Item Name', 'Quantity', 'Type', 'Additional Comments']];
+  let total = 0;
+
+  // Add items grouped by category
+  CATEGORIES.forEach((cat) => {
+    if (grouped[cat] && grouped[cat].length > 0) {
+      let categoryTotal = 0;
+      grouped[cat].forEach((item) => {
+        data.push([item.name, item.count, cat, item.comments]);
+        categoryTotal += item.count;
+        total += item.count;
+      });
+      // Add category subtotal
+      data.push([`${cat} Subtotal`, categoryTotal, '', '']);
+    }
+  });
+
+  data.push(['TOTAL', total, '', '']);
 
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{ wch: 30 }, { wch: 10 }];
+  ws['!cols'] = [{ wch: 30 }, { wch: 10 }, { wch: 30 }, { wch: 40 }];
 
   return ws;
 };

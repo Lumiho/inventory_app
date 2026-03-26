@@ -5,54 +5,93 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  FlatList,
+  SectionList,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  Modal,
 } from 'react-native';
-import { loadKnownItems, saveInventory, generateId } from '../utils/storage';
+import { loadKnownItems, saveInventory, updateInventory, generateId } from '../utils/storage';
 import { exportSingleInventory } from '../utils/excel';
+import { CATEGORIES, DEFAULT_CATEGORY, getCategoryIndex } from '../utils/categories';
 
 const ActiveInventoryScreen = ({ navigation, route }) => {
-  const { inventoryName } = route.params;
+  const { inventoryName, existingInventory } = route.params;
+  const isEditMode = !!existingInventory;
   const [items, setItems] = useState({});
   const [inputValue, setInputValue] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(DEFAULT_CATEGORY);
+  const [commentModalVisible, setCommentModalVisible] = useState(false);
+  const [editingItemName, setEditingItemName] = useState('');
+  const [commentInput, setCommentInput] = useState('');
 
   useEffect(() => {
     initializeItems();
   }, []);
 
   const initializeItems = async () => {
-    const knownItems = await loadKnownItems();
-    const initialItems = {};
-    knownItems.forEach((itemName) => {
-      initialItems[itemName] = 0;
-    });
-    setItems(initialItems);
+    if (isEditMode) {
+      // Edit mode: load items from existing inventory
+      const existingItems = {};
+      Object.entries(existingInventory.items).forEach(([name, data]) => {
+        // Handle both old format (number) and new format (object)
+        if (typeof data === 'number') {
+          existingItems[name] = { count: data, category: DEFAULT_CATEGORY };
+        } else {
+          existingItems[name] = { count: data.count, category: data.category || DEFAULT_CATEGORY };
+        }
+      });
+      setItems(existingItems);
+    } else {
+      // New inventory: load known items with count 0
+      const knownItems = await loadKnownItems();
+      const initialItems = {};
+      knownItems.forEach((item) => {
+        if (typeof item === 'string') {
+          initialItems[item] = { count: 0, category: DEFAULT_CATEGORY };
+        } else {
+          initialItems[item.name] = { count: 0, category: item.category || DEFAULT_CATEGORY };
+        }
+      });
+      setItems(initialItems);
+    }
   };
 
   const handleAddItem = () => {
     const trimmedName = inputValue.trim();
     if (trimmedName.length === 0) return;
 
-    setItems((prev) => ({
-      ...prev,
-      [trimmedName]: (prev[trimmedName] || 0) + 1,
-    }));
+    setItems((prev) => {
+      const existing = prev[trimmedName];
+      if (existing) {
+        // If item exists but count is 0, use the selected category
+        // Otherwise keep the category the user already assigned
+        const category = existing.count === 0 ? selectedCategory : existing.category;
+        return {
+          ...prev,
+          [trimmedName]: { count: existing.count + 1, category },
+        };
+      }
+      return {
+        ...prev,
+        [trimmedName]: { count: 1, category: selectedCategory },
+      };
+    });
     setInputValue('');
   };
 
   const handleIncrement = (itemName) => {
     setItems((prev) => ({
       ...prev,
-      [itemName]: prev[itemName] + 1,
+      [itemName]: { ...prev[itemName], count: prev[itemName].count + 1 },
     }));
   };
 
   const handleDecrement = (itemName) => {
     setItems((prev) => ({
       ...prev,
-      [itemName]: Math.max(0, prev[itemName] - 1),
+      [itemName]: { ...prev[itemName], count: Math.max(0, prev[itemName].count - 1) },
     }));
   };
 
@@ -77,13 +116,26 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
     );
   };
 
+  const handleOpenCommentModal = (itemName) => {
+    setEditingItemName(itemName);
+    setCommentInput(items[itemName]?.comments || '');
+    setCommentModalVisible(true);
+  };
+
+  const handleSaveComment = () => {
+    setItems((prev) => ({
+      ...prev,
+      [editingItemName]: { ...prev[editingItemName], comments: commentInput.trim() },
+    }));
+    setCommentModalVisible(false);
+    setEditingItemName('');
+    setCommentInput('');
+  };
+
   const handleExport = async () => {
-    const inventory = {
-      id: generateId(),
-      name: inventoryName,
-      timestamp: Date.now(),
-      items: items,
-    };
+    const inventory = isEditMode
+      ? { ...existingInventory, items: items }
+      : { id: generateId(), name: inventoryName, timestamp: Date.now(), items: items };
     const result = await exportSingleInventory(inventory);
     if (!result.success) {
       Alert.alert('Export Failed', result.error);
@@ -92,24 +144,33 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
 
   const handleSaveAndFinish = () => {
     Alert.alert(
-      'Save Inventory',
-      'Save this inventory and return to home?',
+      isEditMode ? 'Update Inventory' : 'Save Inventory',
+      isEditMode ? 'Save changes and return to home?' : 'Save this inventory and return to home?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Save',
           onPress: async () => {
-            const inventory = {
-              id: generateId(),
-              name: inventoryName,
-              timestamp: Date.now(),
-              items: items,
-            };
-            const success = await saveInventory(inventory);
+            let success;
+            if (isEditMode) {
+              const inventory = {
+                ...existingInventory,
+                items: items,
+              };
+              success = await updateInventory(inventory);
+            } else {
+              const inventory = {
+                id: generateId(),
+                name: inventoryName,
+                timestamp: Date.now(),
+                items: items,
+              };
+              success = await saveInventory(inventory);
+            }
             if (success) {
               navigation.popToTop();
             } else {
-              Alert.alert('Error', 'Failed to save inventory');
+              Alert.alert('Error', `Failed to ${isEditMode ? 'update' : 'save'} inventory`);
             }
           },
         },
@@ -132,40 +193,68 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
     );
   };
 
-  const getSortedItems = () => {
-    return Object.entries(items).sort((a, b) => {
-      const [nameA, countA] = a;
-      const [nameB, countB] = b;
-
-      // Items with count > 0 come first, sorted by count descending
-      if (countA > 0 && countB === 0) return -1;
-      if (countA === 0 && countB > 0) return 1;
-      if (countA > 0 && countB > 0) {
-        if (countA !== countB) return countB - countA;
-      }
-      // Same count or both zero: sort alphabetically
-      return nameA.localeCompare(nameB);
+  const getSections = () => {
+    // Group items by category
+    const grouped = {};
+    CATEGORIES.forEach((cat) => {
+      grouped[cat] = [];
     });
+
+    Object.entries(items).forEach(([name, data]) => {
+      const category = data.category || DEFAULT_CATEGORY;
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push({ name, count: data.count, category, comments: data.comments || '' });
+    });
+
+    // Sort items within each category
+    Object.keys(grouped).forEach((cat) => {
+      grouped[cat].sort((a, b) => {
+        if (a.count > 0 && b.count === 0) return -1;
+        if (a.count === 0 && b.count > 0) return 1;
+        if (a.count > 0 && b.count > 0 && a.count !== b.count) {
+          return b.count - a.count;
+        }
+        return a.name.localeCompare(b.name);
+      });
+    });
+
+    // Build sections, only include categories that have items
+    return CATEGORIES
+      .filter((cat) => grouped[cat] && grouped[cat].length > 0)
+      .map((cat) => ({
+        title: cat,
+        data: grouped[cat],
+        total: grouped[cat].reduce((sum, item) => sum + item.count, 0),
+      }));
   };
 
   const getTotal = () => {
-    return Object.values(items).reduce((sum, count) => sum + count, 0);
+    return Object.values(items).reduce((sum, data) => sum + data.count, 0);
   };
 
   const renderItem = ({ item }) => {
-    const [name, count] = item;
+    const { name, count, comments } = item;
     const isDimmed = count === 0;
 
     return (
       <View style={[styles.itemRow, isDimmed && styles.itemRowDimmed]}>
-        <View style={styles.itemInfo}>
-          <Text style={[styles.itemName, isDimmed && styles.itemNameDimmed]}>
-            {name}
-          </Text>
+        <TouchableOpacity style={styles.itemInfo} onPress={() => handleOpenCommentModal(name)}>
+          <View style={styles.itemNameContainer}>
+            <Text style={[styles.itemName, isDimmed && styles.itemNameDimmed]}>
+              {name}
+            </Text>
+            {comments ? (
+              <Text style={styles.itemComment} numberOfLines={1}>{comments}</Text>
+            ) : (
+              <Text style={styles.addCommentHint}>Tap to add note</Text>
+            )}
+          </View>
           <Text style={[styles.itemCount, isDimmed && styles.itemCountDimmed]}>
             {count}
           </Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.itemButtons}>
           <TouchableOpacity
             style={[styles.itemButton, styles.decrementButton]}
@@ -189,6 +278,15 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
       </View>
     );
   };
+
+  const renderSectionHeader = ({ section }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{section.title}</Text>
+      <Text style={styles.sectionCount}>
+        {section.data.length} items · {section.total} total
+      </Text>
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -221,16 +319,46 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={getSortedItems()}
-        keyExtractor={(item) => item[0]}
+      <View style={styles.categoryContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryScroll}
+        >
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[
+                styles.categoryPill,
+                selectedCategory === cat && styles.categoryPillSelected,
+              ]}
+              onPress={() => setSelectedCategory(cat)}
+            >
+              <Text
+                style={[
+                  styles.categoryPillText,
+                  selectedCategory === cat && styles.categoryPillTextSelected,
+                ]}
+              >
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      <SectionList
+        sections={getSections()}
+        keyExtractor={(item) => item.name}
         renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <Text style={styles.emptyText}>
             Type an item name above to start counting
           </Text>
         }
+        stickySectionHeadersEnabled={false}
       />
 
       <View style={styles.footer}>
@@ -245,6 +373,41 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
       <TouchableOpacity style={styles.discardButton} onPress={handleDiscard}>
         <Text style={styles.discardButtonText}>Discard</Text>
       </TouchableOpacity>
+
+      <Modal
+        visible={commentModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setCommentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Note</Text>
+            <Text style={styles.modalItemName}>{editingItemName}</Text>
+            <TextInput
+              style={styles.commentInput}
+              value={commentInput}
+              onChangeText={setCommentInput}
+              placeholder="Enter notes or comments..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setCommentModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveComment}>
+                <Text style={styles.modalSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -300,8 +463,56 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  categoryContainer: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  categoryScroll: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  categoryPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    marginRight: 8,
+  },
+  categoryPillSelected: {
+    backgroundColor: '#2563eb',
+  },
+  categoryPillText: {
+    fontSize: 13,
+    color: '#4b5563',
+    fontWeight: '500',
+  },
+  categoryPillTextSelected: {
+    color: '#ffffff',
+  },
   list: {
     padding: 12,
+  },
+  sectionHeader: {
+    backgroundColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    borderRadius: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
+  },
+  sectionCount: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   itemRow: {
     backgroundColor: '#ffffff',
@@ -415,6 +626,82 @@ const styles = StyleSheet.create({
   discardButtonText: {
     color: '#ef4444',
     fontSize: 14,
+  },
+  itemNameContainer: {
+    flex: 1,
+  },
+  itemComment: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  addCommentHint: {
+    fontSize: 11,
+    color: '#d1d5db',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  modalItemName: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 16,
+  },
+  commentInput: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#4b5563',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalSaveButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

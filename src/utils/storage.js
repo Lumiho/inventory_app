@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_CATEGORY } from './categories';
 
 const INVENTORIES_KEY = 'inventories';
 const KNOWN_ITEMS_KEY = 'known_items';
@@ -46,10 +47,41 @@ export const deleteInventory = async (inventoryId) => {
   }
 };
 
+export const updateInventory = async (inventory) => {
+  try {
+    const inventories = await loadInventories();
+    const index = inventories.findIndex((inv) => inv.id === inventory.id);
+    if (index !== -1) {
+      inventories[index] = inventory;
+      await saveInventories(inventories);
+      await updateKnownItems(inventory.items);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error updating inventory:', error);
+    return false;
+  }
+};
+
 export const loadKnownItems = async () => {
   try {
     const data = await AsyncStorage.getItem(KNOWN_ITEMS_KEY);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+
+    const parsed = JSON.parse(data);
+
+    // Migration: convert old format (array of strings) to new format (array of objects)
+    if (parsed.length > 0 && typeof parsed[0] === 'string') {
+      const migrated = parsed.map((name) => ({
+        name,
+        category: DEFAULT_CATEGORY,
+      }));
+      await AsyncStorage.setItem(KNOWN_ITEMS_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+
+    return parsed;
   } catch (error) {
     console.error('Error loading known items:', error);
     return [];
@@ -59,8 +91,19 @@ export const loadKnownItems = async () => {
 export const updateKnownItems = async (newItems) => {
   try {
     const existingItems = await loadKnownItems();
-    const itemNames = Object.keys(newItems);
-    const combined = [...new Set([...existingItems, ...itemNames])];
+    const existingMap = new Map(existingItems.map((item) => [item.name, item]));
+
+    // newItems is now { itemName: { count, category } }
+    Object.entries(newItems).forEach(([name, data]) => {
+      if (!existingMap.has(name)) {
+        existingMap.set(name, {
+          name,
+          category: data.category || DEFAULT_CATEGORY,
+        });
+      }
+    });
+
+    const combined = Array.from(existingMap.values());
     await AsyncStorage.setItem(KNOWN_ITEMS_KEY, JSON.stringify(combined));
   } catch (error) {
     console.error('Error updating known items:', error);
