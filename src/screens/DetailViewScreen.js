@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { exportSingleInventory } from '../utils/excel';
-import { CATEGORIES, DEFAULT_CATEGORY } from '../utils/categories';
+import { CATEGORIES, DEFAULT_CATEGORY, getCategoryColor } from '../utils/categories';
 
 const DetailViewScreen = ({ navigation, route }) => {
   const { inventory } = route.params;
@@ -28,22 +28,27 @@ const DetailViewScreen = ({ navigation, route }) => {
       grouped[cat] = [];
     });
 
-    Object.entries(inventory.items).forEach(([name, data]) => {
-      // Handle both old format (number) and new format (object with count/category)
-      let count, category;
-      if (typeof data === 'number') {
-        count = data;
-        category = DEFAULT_CATEGORY;
-      } else {
-        count = data.count;
-        category = data.category || DEFAULT_CATEGORY;
-      }
+    // Handle both array format and old object format
+    const itemsToProcess = Array.isArray(inventory.items)
+      ? inventory.items
+      : Object.entries(inventory.items).map(([name, data]) => {
+          if (typeof data === 'number') {
+            return { name, count: data, category: DEFAULT_CATEGORY, comments: '' };
+          }
+          return { name, count: data.count, category: data.category || DEFAULT_CATEGORY, comments: data.comments || '' };
+        });
 
+    itemsToProcess.forEach((item) => {
+      const category = item.category || DEFAULT_CATEGORY;
       if (!grouped[category]) {
         grouped[category] = [];
       }
-      const comments = typeof data === 'number' ? '' : (data.comments || '');
-      grouped[category].push({ name, count, category, comments });
+      grouped[category].push({
+        name: item.name,
+        count: item.count,
+        category,
+        comments: item.comments || '',
+      });
     });
 
     // Sort items within each category
@@ -69,6 +74,9 @@ const DetailViewScreen = ({ navigation, route }) => {
   };
 
   const getTotal = () => {
+    if (Array.isArray(inventory.items)) {
+      return inventory.items.reduce((sum, item) => sum + (item.count || 0), 0);
+    }
     return Object.values(inventory.items).reduce((sum, data) => {
       const count = typeof data === 'number' ? data : data.count;
       return sum + count;
@@ -76,7 +84,7 @@ const DetailViewScreen = ({ navigation, route }) => {
   };
 
   const getTypesCount = () => {
-    return Object.keys(inventory.items).length;
+    return Array.isArray(inventory.items) ? inventory.items.length : Object.keys(inventory.items).length;
   };
 
   const handleExport = async () => {
@@ -115,7 +123,8 @@ const DetailViewScreen = ({ navigation, route }) => {
   };
 
   const renderSectionHeader = ({ section }) => (
-    <View style={styles.sectionHeader}>
+    <View style={[styles.sectionHeader, { borderLeftColor: getCategoryColor(section.title) }]}>
+      <View style={[styles.sectionDot, { backgroundColor: getCategoryColor(section.title) }]} />
       <Text style={styles.sectionTitle}>{section.title}</Text>
       <Text style={styles.sectionCount}>
         {section.data.length} items · {section.total} total
@@ -174,159 +183,194 @@ const DetailViewScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0f172a',
   },
   header: {
-    backgroundColor: '#2563eb',
-    padding: 16,
-    paddingTop: 50,
+    backgroundColor: '#6366f1',
+    padding: 20,
+    paddingTop: 52,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   backButton: {
-    marginBottom: 8,
+    marginBottom: 10,
   },
   backButtonText: {
-    color: '#bfdbfe',
+    color: '#c7d2fe',
     fontSize: 16,
+    fontWeight: '600',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#ffffff',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   dateText: {
     fontSize: 14,
-    color: '#bfdbfe',
+    color: '#c7d2fe',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '500',
   },
   summary: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#1e293b',
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: -12,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   summaryItem: {
     flex: 1,
     alignItems: 'center',
   },
   summaryDivider: {
-    width: 1,
-    backgroundColor: '#e5e7eb',
+    width: 2,
+    backgroundColor: '#334155',
+    borderRadius: 1,
   },
   summaryValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2563eb',
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#22d3ee',
   },
   summaryLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
+    color: '#64748b',
     marginTop: 4,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   list: {
-    padding: 12,
+    padding: 14,
+    paddingTop: 20,
   },
   sectionHeader: {
-    backgroundColor: '#e5e7eb',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-    borderRadius: 6,
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    borderRadius: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    borderLeftWidth: 4,
+  },
+  sectionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: '#e2e8f0',
     flex: 1,
   },
   sectionCount: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#64748b',
+    fontWeight: '600',
   },
   itemRow: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 8,
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   itemRowDimmed: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#1a2234',
+    opacity: 0.7,
   },
   itemNameContainer: {
     flex: 1,
   },
   itemName: {
     fontSize: 16,
-    color: '#1f2937',
+    color: '#f1f5f9',
+    fontWeight: '600',
   },
   itemNameDimmed: {
-    color: '#9ca3af',
+    color: '#64748b',
   },
   itemComment: {
     fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
+    color: '#22d3ee',
+    marginTop: 3,
   },
   itemCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2563eb',
-    minWidth: 40,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#22d3ee',
+    minWidth: 44,
     textAlign: 'right',
   },
   itemCountDimmed: {
-    color: '#d1d5db',
+    color: '#475569',
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
-    marginTop: 32,
+    color: '#64748b',
+    marginTop: 48,
     fontSize: 16,
   },
   footer: {
     flexDirection: 'row',
     padding: 16,
     gap: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: '#334155',
   },
   editButton: {
     flex: 1,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#6366f1',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 14,
     alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   editButtonText: {
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
   },
   exportButton: {
     flex: 1,
-    backgroundColor: '#059669',
+    backgroundColor: '#10b981',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 14,
     alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   exportButtonText: {
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });
 

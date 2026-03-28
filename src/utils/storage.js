@@ -93,12 +93,16 @@ export const updateKnownItems = async (newItems) => {
     const existingItems = await loadKnownItems();
     const existingMap = new Map(existingItems.map((item) => [item.name, item]));
 
-    // newItems is now { itemName: { count, category } }
-    Object.entries(newItems).forEach(([name, data]) => {
-      if (!existingMap.has(name)) {
-        existingMap.set(name, {
-          name,
-          category: data.category || DEFAULT_CATEGORY,
+    // Handle both array format and object format
+    const itemsToProcess = Array.isArray(newItems)
+      ? newItems
+      : Object.entries(newItems).map(([name, data]) => ({ name, ...data }));
+
+    itemsToProcess.forEach((item) => {
+      if (!existingMap.has(item.name)) {
+        existingMap.set(item.name, {
+          name: item.name,
+          category: item.category || DEFAULT_CATEGORY,
         });
       }
     });

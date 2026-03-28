@@ -18,18 +18,25 @@ const sanitizeSheetName = (name, index) => {
 };
 
 const createWorksheetFromInventory = (inventory) => {
-  // Parse items handling both old format (count) and new format ({ count, category, comments })
-  const parsedItems = Object.entries(inventory.items).map(([name, data]) => {
-    if (typeof data === 'number') {
-      return { name, count: data, category: DEFAULT_CATEGORY, comments: '' };
-    }
-    return {
-      name,
-      count: data.count,
-      category: data.category || DEFAULT_CATEGORY,
-      comments: data.comments || '',
-    };
-  });
+  // Parse items handling array format and old object format
+  const parsedItems = Array.isArray(inventory.items)
+    ? inventory.items.map((item) => ({
+        name: item.name,
+        count: item.count,
+        category: item.category || DEFAULT_CATEGORY,
+        comments: item.comments || '',
+      }))
+    : Object.entries(inventory.items).map(([name, data]) => {
+        if (typeof data === 'number') {
+          return { name, count: data, category: DEFAULT_CATEGORY, comments: '' };
+        }
+        return {
+          name,
+          count: data.count,
+          category: data.category || DEFAULT_CATEGORY,
+          comments: data.comments || '',
+        };
+      });
 
   // Group by category
   const grouped = {};

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { loadKnownItems, saveInventory, updateInventory, generateId } from '../utils/storage';
 import { exportSingleInventory } from '../utils/excel';
-import { CATEGORIES, DEFAULT_CATEGORY, getCategoryIndex } from '../utils/categories';
+import { CATEGORIES, DEFAULT_CATEGORY, getCategoryIndex, getCategoryColor } from '../utils/categories';
 
 const ActiveInventoryScreen = ({ navigation, route }) => {
   const { inventoryName, existingInventory } = route.params;
@@ -31,17 +31,20 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
   }, []);
 
   const initializeItems = async () => {
+
     if (isEditMode) {
       // Edit mode: load items from existing inventory
       const existingItems = {};
-      Object.entries(existingInventory.items).forEach(([name, data]) => {
-        // Handle both old format (number) and new format (object)
-        if (typeof data === 'number') {
-          existingItems[name] = { count: data, category: DEFAULT_CATEGORY };
-        } else {
-          existingItems[name] = { count: data.count, category: data.category || DEFAULT_CATEGORY };
-        }
-      });
+    const itemsArray = Array.isArray(existingInventory.items)
+      ? existingInventory.items
+      : Object.entries(existingInventory.items).map(([name, data]) => ({
+          name,
+          ...(typeof data === 'number' ? { count: data, category: DEFAULT_CATEGORY } : data),
+        }));
+
+    itemsArray.forEach(({ name, count, category }) => {
+      existingItems[name] = { count, category: category || DEFAULT_CATEGORY };
+    });
       setItems(existingItems);
     } else {
       // New inventory: load known items with count 0
@@ -155,7 +158,7 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
             if (isEditMode) {
               const inventory = {
                 ...existingInventory,
-                items: items,
+                items: Object.entries(items).map(([name, data]) => ({ name, ...data })),
               };
               success = await updateInventory(inventory);
             } else {
@@ -163,7 +166,7 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
                 id: generateId(),
                 name: inventoryName,
                 timestamp: Date.now(),
-                items: items,
+                items: Object.entries(items).map(([name, data]) => ({ name, ...data })),
               };
               success = await saveInventory(inventory);
             }
@@ -280,7 +283,8 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
   };
 
   const renderSectionHeader = ({ section }) => (
-    <View style={styles.sectionHeader}>
+    <View style={[styles.sectionHeader, { borderLeftColor: getCategoryColor(section.title) }]}>
+      <View style={[styles.sectionDot, { backgroundColor: getCategoryColor(section.title) }]} />
       <Text style={styles.sectionTitle}>{section.title}</Text>
       <Text style={styles.sectionCount}>
         {section.data.length} items · {section.total} total
@@ -306,7 +310,7 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
           value={inputValue}
           onChangeText={setInputValue}
           placeholder="Type item name to add..."
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor="#64748b"
           returnKeyType="done"
           onSubmitEditing={handleAddItem}
         />
@@ -325,25 +329,40 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryScroll}
         >
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryPill,
-                selectedCategory === cat && styles.categoryPillSelected,
-              ]}
-              onPress={() => setSelectedCategory(cat)}
-            >
-              <Text
+          {[selectedCategory, ...CATEGORIES.filter(cat => cat !== selectedCategory)].map((cat) => {
+            const isSelected = selectedCategory === cat;
+            const catColor = getCategoryColor(cat);
+            return (
+              <TouchableOpacity
+                key={cat}
                 style={[
-                  styles.categoryPillText,
-                  selectedCategory === cat && styles.categoryPillTextSelected,
+                  styles.categoryPill,
+                  isSelected && {
+                    backgroundColor: catColor,
+                    borderColor: catColor,
+                    shadowColor: catColor,
+                    shadowOpacity: 0.5,
+                    elevation: 6,
+                  },
+                  !isSelected && {
+                    borderWidth: 2,
+                    borderColor: catColor + '66',
+                  },
                 ]}
+                onPress={() => setSelectedCategory(cat)}
               >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.categoryPillText,
+                    isSelected && styles.categoryPillTextSelected,
+                    !isSelected && { color: catColor },
+                  ]}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -370,9 +389,11 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.discardButton} onPress={handleDiscard}>
-        <Text style={styles.discardButtonText}>Discard</Text>
-      </TouchableOpacity>
+      <View style={styles.discardContainer}>
+        <TouchableOpacity style={styles.discardButton} onPress={handleDiscard} activeOpacity={0.6}>
+          <Text style={styles.discardButtonText}>Discard Changes</Text>
+        </TouchableOpacity>
+      </View>
 
       <Modal
         visible={commentModalVisible}
@@ -389,7 +410,7 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
               value={commentInput}
               onChangeText={setCommentInput}
               placeholder="Enter notes or comments..."
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#64748b"
               multiline
               numberOfLines={3}
               autoFocus
@@ -415,120 +436,135 @@ const ActiveInventoryScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0f172a',
   },
   header: {
-    backgroundColor: '#2563eb',
-    padding: 16,
-    paddingTop: 50,
+    backgroundColor: '#6366f1',
+    padding: 20,
+    paddingTop: 52,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#ffffff',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   totalText: {
-    fontSize: 14,
-    color: '#bfdbfe',
+    fontSize: 15,
+    color: '#c7d2fe',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    padding: 14,
+    backgroundColor: '#1e293b',
   },
   input: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#334155',
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
-    marginRight: 8,
+    marginRight: 10,
+    color: '#f1f5f9',
   },
   addButton: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 24,
+    borderRadius: 12,
     justifyContent: 'center',
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
   },
   addButtonDisabled: {
-    backgroundColor: '#93c5fd',
+    backgroundColor: '#475569',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   addButtonText: {
     color: '#ffffff',
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 16,
   },
   categoryContainer: {
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    backgroundColor: '#1e293b',
+    paddingBottom: 4,
   },
   categoryScroll: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 8,
   },
   categoryPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: '#1e293b',
     marginRight: 8,
-  },
-  categoryPillSelected: {
-    backgroundColor: '#2563eb',
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
   },
   categoryPillText: {
     fontSize: 13,
-    color: '#4b5563',
-    fontWeight: '500',
+    fontWeight: '700',
   },
   categoryPillTextSelected: {
     color: '#ffffff',
   },
   list: {
-    padding: 12,
+    padding: 14,
   },
   sectionHeader: {
-    backgroundColor: '#e5e7eb',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-    borderRadius: 6,
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    borderRadius: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    borderLeftWidth: 4,
+  },
+  sectionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: '#e2e8f0',
     flex: 1,
   },
   sectionCount: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#64748b',
+    fontWeight: '600',
   },
   itemRow: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   itemRowDimmed: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#1a2234',
+    opacity: 0.7,
   },
   itemInfo: {
     flex: 1,
@@ -539,169 +575,197 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: 16,
-    color: '#1f2937',
-    flex: 1,
+    color: '#f1f5f9',
+    fontWeight: '600',
   },
   itemNameDimmed: {
-    color: '#9ca3af',
+    color: '#64748b',
   },
   itemCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2563eb',
-    minWidth: 40,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#22d3ee',
+    minWidth: 44,
     textAlign: 'right',
   },
   itemCountDimmed: {
-    color: '#d1d5db',
+    color: '#475569',
   },
   itemButtons: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   itemButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   decrementButton: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: '#fbbf24',
   },
   incrementButton: {
-    backgroundColor: '#d1fae5',
+    backgroundColor: '#34d399',
   },
   deleteButton: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#f87171',
   },
   itemButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#374151',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1e293b',
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
-    marginTop: 32,
+    color: '#64748b',
+    marginTop: 48,
     fontSize: 16,
   },
   footer: {
     flexDirection: 'row',
-    padding: 12,
+    padding: 14,
     gap: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: '#334155',
   },
   exportButton: {
     flex: 1,
-    backgroundColor: '#059669',
-    padding: 14,
-    borderRadius: 8,
+    backgroundColor: '#10b981',
+    padding: 16,
+    borderRadius: 14,
     alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   exportButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   saveButton: {
     flex: 1,
-    backgroundColor: '#2563eb',
-    padding: 14,
-    borderRadius: 8,
+    backgroundColor: '#6366f1',
+    padding: 16,
+    borderRadius: 14,
     alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   saveButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  discardContainer: {
+    backgroundColor: '#1e293b',
+    paddingBottom: 24,
   },
   discardButton: {
-    padding: 12,
+    padding: 16,
+    marginHorizontal: 16,
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#331a1a',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f8717133',
   },
   discardButtonText: {
-    color: '#ef4444',
-    fontSize: 14,
+    color: '#f87171',
+    fontSize: 15,
+    fontWeight: '700',
   },
   itemNameContainer: {
     flex: 1,
   },
   itemComment: {
     fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
+    color: '#22d3ee',
+    marginTop: 3,
   },
   addCommentHint: {
     fontSize: 11,
-    color: '#d1d5db',
-    marginTop: 2,
+    color: '#475569',
+    marginTop: 3,
     fontStyle: 'italic',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: '#1e293b',
+    borderRadius: 20,
+    padding: 24,
     width: '100%',
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f1f5f9',
     marginBottom: 4,
   },
   modalItemName: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 16,
+    color: '#8b5cf6',
+    marginBottom: 18,
+    fontWeight: '600',
   },
   commentInput: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#334155',
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
-    minHeight: 80,
+    minHeight: 100,
     textAlignVertical: 'top',
+    color: '#f1f5f9',
   },
   modalButtons: {
     flexDirection: 'row',
-    marginTop: 16,
+    marginTop: 20,
     gap: 12,
   },
   modalCancelButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#334155',
     alignItems: 'center',
   },
   modalCancelText: {
-    color: '#4b5563',
+    color: '#94a3b8',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   modalSaveButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#8b5cf6',
     alignItems: 'center',
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
   },
   modalSaveText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '700',
   },
 });
 

@@ -70,11 +70,18 @@ const HomeScreen = ({ navigation }) => {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const getItemCount = (items) => {
-    const total = Object.values(items).reduce((sum, count) => sum + count, 0);
-    const types = Object.keys(items).length;
-    return `${total} items (${types} types)`;
-  };
+const getItemCount = (items) => {
+  if (!items) return '0 items (0 types)';
+
+  const values = Array.isArray(items) ? items : Object.values(items);
+  const total = values.reduce((sum, item) => {
+    if (typeof item === 'number') return sum + item;
+    if (typeof item.count === 'number') return sum + item.count;
+    return sum;
+  }, 0);
+  const types = values.length;
+  return `${total} items (${types} types)`;
+};
 
   const renderInventoryItem = ({ item }) => (
     <TouchableOpacity
@@ -116,7 +123,7 @@ const HomeScreen = ({ navigation }) => {
       ) : (
         <FlatList
           data={inventories}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id} // eror - showing array instead of items
           renderItem={renderInventoryItem}
           contentContainerStyle={styles.list}
         />
@@ -130,98 +137,120 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0f172a',
   },
   header: {
-    backgroundColor: '#2563eb',
-    padding: 20,
-    paddingTop: 50,
+    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+    backgroundColor: '#6366f1',
+    padding: 24,
+    paddingTop: 56,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '800',
     color: '#ffffff',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   newButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#8b5cf6',
     margin: 16,
-    padding: 16,
-    borderRadius: 8,
+    marginTop: 20,
+    padding: 18,
+    borderRadius: 16,
     alignItems: 'center',
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
   },
   newButtonText: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   exportAllButton: {
-    backgroundColor: '#059669',
+    backgroundColor: '#10b981',
     marginHorizontal: 16,
     marginBottom: 16,
-    padding: 12,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   exportAllButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#94a3b8',
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   },
   list: {
     paddingHorizontal: 16,
   },
   inventoryItem: {
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
+    backgroundColor: '#1e293b',
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    borderLeftWidth: 4,
+    borderLeftColor: '#8b5cf6',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   inventoryInfo: {
     flex: 1,
   },
   inventoryName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#f1f5f9',
   },
   inventoryDate: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 6,
   },
   inventoryCount: {
     fontSize: 14,
-    color: '#2563eb',
-    marginTop: 2,
+    color: '#22d3ee',
+    marginTop: 4,
+    fontWeight: '600',
   },
   chevron: {
-    fontSize: 24,
-    color: '#9ca3af',
+    fontSize: 28,
+    color: '#6366f1',
+    fontWeight: 'bold',
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
-    marginTop: 32,
+    color: '#64748b',
+    marginTop: 48,
     fontSize: 16,
   },
   hint: {
     textAlign: 'center',
-    color: '#9ca3af',
+    color: '#475569',
     fontSize: 12,
     padding: 16,
   },

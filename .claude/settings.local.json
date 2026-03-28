@@ -6,7 +6,24 @@
       "Bash(npx expo start:*)",
       "Bash(npx expo install:*)",
       "Bash(git remote:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx eas build -p android --profile preview)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx expo-doctor)",
+      "Bash(java -version:*)",
+      "Bash(npx expo prebuild:*)",
+      "Bash(.gradlew assembleRelease:*)",
+      "Bash(gradlew.bat assembleRelease:*)",
+      "Bash(cmd /c \"cd android && gradlew.bat assembleRelease\")",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\zaval\\\\inventory_app\\\\android && dir gradlew.bat\")",
+      "Bash(cmd /c \"C:\\\\Users\\\\zaval\\\\inventory_app\\\\android\\\\gradlew.bat -p C:\\\\Users\\\\zaval\\\\inventory_app\\\\android assembleRelease 2>&1\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\zaval\\\\inventory_app\\\\android && .\\\\gradlew.bat assembleRelease\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\zaval\\\\inventory_app\\\\android && gradlew.bat assembleRelease\")",
+      "Bash(timeout /t 10 /nobreak)",
+      "Bash(C:Userszavalinventory_appandroidgradlew.bat --project-dir C:Userszavalinventory_appandroid assembleRelease)",
+      "Bash(powershell -Command \"Set-Location ''C:\\\\Users\\\\zaval\\\\inventory_app\\\\android''; .\\\\gradlew.bat assembleRelease\")",
+      "Bash(powershell -Command:*)"
     ]
   }
 }

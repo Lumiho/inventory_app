@@ -40,7 +40,7 @@ const NamingScreen = ({ navigation }) => {
           value={name}
           onChangeText={setName}
           placeholder="e.g., March 2026 Count"
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor="#64748b"
           autoFocus
           returnKeyType="done"
           onSubmitEditing={handleStart}
@@ -65,60 +65,74 @@ const NamingScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0f172a',
   },
   header: {
-    backgroundColor: '#2563eb',
-    padding: 20,
-    paddingTop: 50,
+    backgroundColor: '#6366f1',
+    padding: 24,
+    paddingTop: 56,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '800',
     color: '#ffffff',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: 28,
     justifyContent: 'center',
   },
   label: {
-    fontSize: 16,
-    color: '#374151',
-    marginBottom: 12,
+    fontSize: 17,
+    color: '#e2e8f0',
+    marginBottom: 14,
+    fontWeight: '600',
   },
   input: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 18,
     fontSize: 18,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: '#334155',
+    marginBottom: 28,
+    color: '#f1f5f9',
   },
   startButton: {
-    backgroundColor: '#2563eb',
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: '#8b5cf6',
+    padding: 18,
+    borderRadius: 16,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
   },
   startButtonDisabled: {
-    backgroundColor: '#93c5fd',
+    backgroundColor: '#475569',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   startButtonText: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   cancelButton: {
     padding: 16,
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: '#6b7280',
+    color: '#64748b',
     fontSize: 16,
+    fontWeight: '500',
   },
 });
 
