@@ -65,19 +65,21 @@ const NamingScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#022851',
   },
   header: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#011c3a',
     padding: 24,
     paddingTop: 56,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    borderBottomWidth: 2,
+    borderBottomColor: '#FFBF00',
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#FFBF00',
     textAlign: 'center',
     letterSpacing: 0.5,
   },
@@ -93,22 +95,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#033a6b',
     borderRadius: 16,
     padding: 18,
     fontSize: 18,
     borderWidth: 2,
-    borderColor: '#334155',
+    borderColor: '#FFBF0033',
     marginBottom: 28,
     color: '#f1f5f9',
   },
   startButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: '#FFBF00',
     padding: 18,
     borderRadius: 16,
     alignItems: 'center',
     marginBottom: 14,
-    shadowColor: '#8b5cf6',
+    shadowColor: '#FFBF00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -120,7 +122,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   startButtonText: {
-    color: '#ffffff',
+    color: '#022851',
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -130,9 +132,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: '#64748b',
+    color: '#EC4899',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });
 

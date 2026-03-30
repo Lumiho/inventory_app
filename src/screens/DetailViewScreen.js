@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SectionList,
+  ScrollView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -12,6 +12,7 @@ import { CATEGORIES, DEFAULT_CATEGORY, getCategoryColor } from '../utils/categor
 
 const DetailViewScreen = ({ navigation, route }) => {
   const { inventory } = route.params;
+  const [expandedCategories, setExpandedCategories] = useState({});
 
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
@@ -51,16 +52,9 @@ const DetailViewScreen = ({ navigation, route }) => {
       });
     });
 
-    // Sort items within each category
+    // Sort items within each category alphabetically
     Object.keys(grouped).forEach((cat) => {
-      grouped[cat].sort((a, b) => {
-        if (a.count > 0 && b.count === 0) return -1;
-        if (a.count === 0 && b.count > 0) return 1;
-        if (a.count > 0 && b.count > 0 && a.count !== b.count) {
-          return b.count - a.count;
-        }
-        return a.name.localeCompare(b.name);
-      });
+      grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
     });
 
     // Build sections, only include categories that have items
@@ -101,12 +95,19 @@ const DetailViewScreen = ({ navigation, route }) => {
     });
   };
 
+  const toggleCategory = (category) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [category]: !prev[category],
+    }));
+  };
+
   const renderItem = ({ item }) => {
     const { name, count, comments } = item;
     const isDimmed = count === 0;
 
     return (
-      <View style={[styles.itemRow, isDimmed && styles.itemRowDimmed]}>
+      <View key={name} style={[styles.itemRow, isDimmed && styles.itemRowDimmed]}>
         <View style={styles.itemNameContainer}>
           <Text style={[styles.itemName, isDimmed && styles.itemNameDimmed]}>
             {name}
@@ -121,16 +122,6 @@ const DetailViewScreen = ({ navigation, route }) => {
       </View>
     );
   };
-
-  const renderSectionHeader = ({ section }) => (
-    <View style={[styles.sectionHeader, { borderLeftColor: getCategoryColor(section.title) }]}>
-      <View style={[styles.sectionDot, { backgroundColor: getCategoryColor(section.title) }]} />
-      <Text style={styles.sectionTitle}>{section.title}</Text>
-      <Text style={styles.sectionCount}>
-        {section.data.length} items · {section.total} total
-      </Text>
-    </View>
-  );
 
   return (
     <View style={styles.container}>
@@ -156,17 +147,35 @@ const DetailViewScreen = ({ navigation, route }) => {
         </View>
       </View>
 
-      <SectionList
-        sections={getSections()}
-        keyExtractor={(item) => item.name}
-        renderItem={renderItem}
-        renderSectionHeader={renderSectionHeader}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
+      <ScrollView contentContainerStyle={styles.list}>
+        {getSections().length === 0 ? (
           <Text style={styles.emptyText}>No items in this inventory</Text>
-        }
-        stickySectionHeadersEnabled={false}
-      />
+        ) : (
+          getSections().map((section) => (
+            <View key={section.title}>
+              <TouchableOpacity
+                style={[styles.sectionHeader, { borderLeftColor: getCategoryColor(section.title) }]}
+                onPress={() => toggleCategory(section.title)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sectionDot, { backgroundColor: getCategoryColor(section.title) }]} />
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <Text style={styles.sectionCount}>
+                  {section.data.length} items · {section.total} total
+                </Text>
+                <Text style={styles.expandIcon}>
+                  {expandedCategories[section.title] ? '▼' : '▶'}
+                </Text>
+              </TouchableOpacity>
+              {expandedCategories[section.title] && (
+                <View style={styles.itemsContainer}>
+                  {section.data.map((item) => renderItem({ item }))}
+                </View>
+              )}
+            </View>
+          ))
+        )}
+      </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
@@ -183,40 +192,42 @@ const DetailViewScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#022851',
   },
   header: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#011c3a',
     padding: 20,
     paddingTop: 52,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    borderBottomWidth: 2,
+    borderBottomColor: '#FFBF00',
   },
   backButton: {
     marginBottom: 10,
   },
   backButtonText: {
-    color: '#c7d2fe',
+    color: '#2DD4BF',
     fontSize: 16,
     fontWeight: '600',
   },
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#FFBF00',
     textAlign: 'center',
     letterSpacing: 0.5,
   },
   dateText: {
     fontSize: 14,
-    color: '#c7d2fe',
+    color: '#94a3b8',
     textAlign: 'center',
     marginTop: 6,
     fontWeight: '500',
   },
   summary: {
     flexDirection: 'row',
-    backgroundColor: '#1e293b',
+    backgroundColor: '#033a6b',
     padding: 20,
     marginHorizontal: 16,
     marginTop: -12,
@@ -226,6 +237,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    borderWidth: 1,
+    borderColor: '#FFBF0033',
   },
   summaryItem: {
     flex: 1,
@@ -233,17 +246,17 @@ const styles = StyleSheet.create({
   },
   summaryDivider: {
     width: 2,
-    backgroundColor: '#334155',
+    backgroundColor: '#FFBF0066',
     borderRadius: 1,
   },
   summaryValue: {
     fontSize: 36,
     fontWeight: '800',
-    color: '#22d3ee',
+    color: '#2DD4BF',
   },
   summaryLabel: {
     fontSize: 13,
-    color: '#64748b',
+    color: '#94a3b8',
     marginTop: 4,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -254,7 +267,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   sectionHeader: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#033a6b',
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 10,
@@ -277,11 +290,19 @@ const styles = StyleSheet.create({
   },
   sectionCount: {
     fontSize: 12,
-    color: '#64748b',
+    color: '#94a3b8',
     fontWeight: '600',
   },
+  expandIcon: {
+    fontSize: 12,
+    color: '#FFBF00',
+    marginLeft: 10,
+  },
+  itemsContainer: {
+    marginBottom: 8,
+  },
   itemRow: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#033a6b',
     borderRadius: 14,
     padding: 16,
     marginBottom: 10,
@@ -295,7 +316,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   itemRowDimmed: {
-    backgroundColor: '#1a2234',
+    backgroundColor: '#022851',
     opacity: 0.7,
   },
   itemNameContainer: {
@@ -311,13 +332,13 @@ const styles = StyleSheet.create({
   },
   itemComment: {
     fontSize: 12,
-    color: '#22d3ee',
+    color: '#2DD4BF',
     marginTop: 3,
   },
   itemCount: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#22d3ee',
+    color: '#2DD4BF',
     minWidth: 44,
     textAlign: 'right',
   },
@@ -326,7 +347,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    color: '#64748b',
+    color: '#94a3b8',
     marginTop: 48,
     fontSize: 16,
   },
@@ -334,17 +355,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     gap: 12,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#033a6b',
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: '#FFBF0033',
   },
   editButton: {
     flex: 1,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#EC4899',
     padding: 16,
     borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#6366f1',
+    shadowColor: '#EC4899',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -357,18 +378,18 @@ const styles = StyleSheet.create({
   },
   exportButton: {
     flex: 1,
-    backgroundColor: '#10b981',
+    backgroundColor: '#2DD4BF',
     padding: 16,
     borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#10b981',
+    shadowColor: '#2DD4BF',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
   },
   exportButtonText: {
-    color: '#ffffff',
+    color: '#022851',
     fontSize: 17,
     fontWeight: '700',
   },

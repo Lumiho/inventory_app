@@ -3,30 +3,52 @@ import { DEFAULT_CATEGORY } from './categories';
 
 const INVENTORIES_KEY = 'inventories';
 const KNOWN_ITEMS_KEY = 'known_items';
+const DRAFT_INVENTORY_KEY = 'draft_inventory';
 
+// Returns { success: true, data: [...] } or { success: false, error: string }
 export const loadInventories = async () => {
   try {
     const data = await AsyncStorage.getItem(INVENTORIES_KEY);
-    return data ? JSON.parse(data) : [];
+    return { success: true, data: data ? JSON.parse(data) : [] };
   } catch (error) {
     console.error('Error loading inventories:', error);
-    return [];
+    return { success: false, error: error.message };
   }
+};
+
+// Legacy helper that returns array directly (for backwards compatibility)
+export const loadInventoriesArray = async () => {
+  const result = await loadInventories();
+  if (!result.success) {
+    throw new Error(result.error);
+  }
+  return result.data;
 };
 
 export const saveInventories = async (inventories) => {
   try {
     await AsyncStorage.setItem(INVENTORIES_KEY, JSON.stringify(inventories));
+    return { success: true };
   } catch (error) {
     console.error('Error saving inventories:', error);
+    return { success: false, error: error.message };
   }
 };
 
 export const saveInventory = async (inventory) => {
   try {
-    const inventories = await loadInventories();
+    const loadResult = await loadInventories();
+    // Don't save if load failed - prevents data loss
+    if (!loadResult.success) {
+      console.error('Refusing to save: load failed with', loadResult.error);
+      return false;
+    }
+    const inventories = loadResult.data;
     inventories.unshift(inventory);
-    await saveInventories(inventories);
+    const saveResult = await saveInventories(inventories);
+    if (!saveResult.success) {
+      return false;
+    }
     await updateKnownItems(inventory.items);
     return true;
   } catch (error) {
@@ -37,10 +59,14 @@ export const saveInventory = async (inventory) => {
 
 export const deleteInventory = async (inventoryId) => {
   try {
-    const inventories = await loadInventories();
-    const filtered = inventories.filter((inv) => inv.id !== inventoryId);
-    await saveInventories(filtered);
-    return true;
+    const loadResult = await loadInventories();
+    if (!loadResult.success) {
+      console.error('Refusing to delete: load failed');
+      return false;
+    }
+    const filtered = loadResult.data.filter((inv) => inv.id !== inventoryId);
+    const saveResult = await saveInventories(filtered);
+    return saveResult.success;
   } catch (error) {
     console.error('Error deleting inventory:', error);
     return false;
@@ -49,17 +75,56 @@ export const deleteInventory = async (inventoryId) => {
 
 export const updateInventory = async (inventory) => {
   try {
-    const inventories = await loadInventories();
+    const loadResult = await loadInventories();
+    if (!loadResult.success) {
+      console.error('Refusing to update: load failed');
+      return false;
+    }
+    const inventories = loadResult.data;
     const index = inventories.findIndex((inv) => inv.id === inventory.id);
     if (index !== -1) {
       inventories[index] = inventory;
-      await saveInventories(inventories);
+      const saveResult = await saveInventories(inventories);
+      if (!saveResult.success) {
+        return false;
+      }
       await updateKnownItems(inventory.items);
       return true;
     }
     return false;
   } catch (error) {
     console.error('Error updating inventory:', error);
+    return false;
+  }
+};
+
+// Draft inventory functions for auto-save
+export const saveDraftInventory = async (draft) => {
+  try {
+    await AsyncStorage.setItem(DRAFT_INVENTORY_KEY, JSON.stringify(draft));
+    return true;
+  } catch (error) {
+    console.error('Error saving draft:', error);
+    return false;
+  }
+};
+
+export const loadDraftInventory = async () => {
+  try {
+    const data = await AsyncStorage.getItem(DRAFT_INVENTORY_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Error loading draft:', error);
+    return null;
+  }
+};
+
+export const clearDraftInventory = async () => {
+  try {
+    await AsyncStorage.removeItem(DRAFT_INVENTORY_KEY);
+    return true;
+  } catch (error) {
+    console.error('Error clearing draft:', error);
     return false;
   }
 };
